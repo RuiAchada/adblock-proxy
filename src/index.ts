@@ -1,8 +1,7 @@
-import * as http from "http";
-import * as https from "https";
-import { URL } from "url";
-import { HttpProxyAgent } from "http-proxy-agent";
-import { HttpsProxyAgent } from "https-proxy-agent";
+import * as http from "node:http";
+import * as https from "node:https";
+import { URL } from "node:url";
+import net from "node:net";
 
 const server_port = process.env.PORT || 8085;
 
@@ -21,10 +20,6 @@ const server = http.createServer((req, res) => {
 	const options = {
 		method: req.method,
 		headers: req.headers,
-		agent:
-			targetUrl.protocol === "https:"
-				? new HttpsProxyAgent(targetUrl)
-				: new HttpProxyAgent(targetUrl),
 	};
 
 	const proxyReq = (targetUrl.protocol === "https:" ? https : http).request(
@@ -43,6 +38,30 @@ const server = http.createServer((req, res) => {
 	});
 
 	req.pipe(proxyReq, { end: true });
+});
+
+// Handle HTTPS CONNECT requests
+server.on("connect", (req, clientSocket, head) => {
+	const { port, hostname } = new URL(`http://${req.url}`);
+	const portNumber = Number.parseInt(port || "443", 10);
+
+	console.log(`Received CONNECT request for ${hostname}:${portNumber}`);
+
+	const serverSocket = net.connect(portNumber, hostname, () => {
+		clientSocket.write(
+			"HTTP/1.1 200 Connection Established\r\n" +
+				"Proxy-agent: Node.js-Proxy\r\n" +
+				"\r\n",
+		);
+		serverSocket.write(head);
+		serverSocket.pipe(clientSocket);
+		clientSocket.pipe(serverSocket);
+	});
+
+	serverSocket.on("error", (err) => {
+		console.error("CONNECT error:", err);
+		clientSocket.end();
+	});
 });
 
 server.listen(server_port, () => {
