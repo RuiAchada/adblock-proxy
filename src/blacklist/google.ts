@@ -1,0 +1,31 @@
+const blacklist_google_ads = [
+	"ad.doubleclick.net",
+	"adclick.g.doublecklick.net",
+	"ade.googlesyndication.com",
+	"adservice.google.com",
+	"analytics.google.com",
+	"doubleclick.net",
+	"ee-in-f95.1.e100.net",
+	"gcdn.2mdn.net",
+	"googleads.g.doubleclick.net",
+	"googleads4.g.doubleclick.net",
+	"googleadservices.com",
+	"s0.2mdn.net",
+	"pagead.l.doubleclick.net",
+	"pagead-googlehosted.l.google.com",
+	"pagead2.googlesyndication.com",
+	"pagead46.l.doubleclick.net",
+	"partner.googleadservices.com",
+	"partnerad.l.doubleclick.net",
+	"pubads.g.doubleclick.net",
+	"s0-2mdn-net.l.google.com",
+	"s0.2mdn.net",
+	"securepubads.g.doubleclick.net",
+	"tpc.googlesyndication.com",
+	"video-ad-stats.googlesyndication.com",
+	"www.googleadservices.com",
+	"www.googletagservices.com",
+];
+
+export default blacklist_google_ads;
+export { blacklist_google_ads };

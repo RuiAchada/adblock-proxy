@@ -2,8 +2,13 @@ import * as http from "node:http";
 import * as https from "node:https";
 import { URL } from "node:url";
 import net from "node:net";
+import blacklist from "./blacklist";
 
-const server_port = process.env.PORT || 8085;
+const isBlacklisted = (hostname: string): boolean => {
+	return blacklist.includes(hostname);
+};
+
+const server_port = Number.parseInt(process.env.PORT || "8085");
 
 // Create a server to listen to requests
 const server = http.createServer((req, res) => {
@@ -16,6 +21,12 @@ const server = http.createServer((req, res) => {
 	}
 
 	console.log(`Received request for ${targetUrl.href}`);
+
+	if (isBlacklisted(targetUrl.hostname)) {
+		res.writeHead(403, { "Content-Type": "text/plain" });
+		res.end("Forbidden: Access to this domain is blocked.");
+		return;
+	}
 
 	const options = {
 		method: req.method,
@@ -38,12 +49,35 @@ const server = http.createServer((req, res) => {
 	});
 
 	req.pipe(proxyReq, { end: true });
+
+	// Add error handling for request and response streams
+	req.on("error", (err) => {
+		console.error("Request error:", err);
+		res.writeHead(500, { "Content-Type": "text/plain" });
+		res.end("Request error.");
+	});
+
+	res.on("error", (err) => {
+		console.error("Response error:", err);
+	});
 });
 
 // Handle HTTPS CONNECT requests
 server.on("connect", (req, clientSocket, head) => {
 	const { port, hostname } = new URL(`http://${req.url}`);
 	const portNumber = Number.parseInt(port || "443", 10);
+
+	if (isBlacklisted(hostname)) {
+		console.log(`----- Blocked CONNECT request for ${hostname}:${portNumber}`);
+		clientSocket.write(
+			"HTTP/1.1 403 Forbidden\r\n" +
+				"Content-Type: text/plain\r\n" +
+				"\r\n" +
+				"Forbidden: Access to this domain is blocked.\r\n",
+		);
+		clientSocket.end();
+		return;
+	}
 
 	console.log(`Received CONNECT request for ${hostname}:${portNumber}`);
 
@@ -62,8 +96,18 @@ server.on("connect", (req, clientSocket, head) => {
 		console.error("CONNECT error:", err);
 		clientSocket.end();
 	});
+
+	clientSocket.on("error", (err) => {
+		console.error("Client socket error:", err);
+		serverSocket.end();
+	});
 });
 
 server.listen(server_port, () => {
 	console.log(`Proxy server is listening on port ${server_port}`);
+});
+
+// Handle server-level errors
+server.on("error", (err) => {
+	console.error("Server error:", err);
 });
