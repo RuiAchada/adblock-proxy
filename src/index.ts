@@ -2,8 +2,10 @@ import * as http from "node:http";
 import * as https from "node:https";
 import { URL } from "node:url";
 import net from "node:net";
+import * as tls from "node:tls";
+import { generateCertificate, caCertPem } from "./generate-ca";
 
-const server_port = process.env.PORT || 8085;
+const server_port = Number.parseInt(process.env.PORT || "8085");
 
 // Create a server to listen to requests
 const server = http.createServer((req, res) => {
@@ -42,20 +44,34 @@ const server = http.createServer((req, res) => {
 
 // Handle HTTPS CONNECT requests
 server.on("connect", (req, clientSocket, head) => {
+	console.log(`CONNECT request URL: ${req.url}`);
+
 	const { port, hostname } = new URL(`http://${req.url}`);
 	const portNumber = Number.parseInt(port || "443", 10);
 
 	console.log(`Received CONNECT request for ${hostname}:${portNumber}`);
 
+	// Generate a certificate for the hostname
+	const { key, cert } = generateCertificate(hostname);
+
 	const serverSocket = net.connect(portNumber, hostname, () => {
+		console.log(`Connected to ${hostname}:${portNumber}`);
+
 		clientSocket.write(
 			"HTTP/1.1 200 Connection Established\r\n" +
 				"Proxy-agent: Node.js-Proxy\r\n" +
 				"\r\n",
 		);
-		serverSocket.write(head);
-		serverSocket.pipe(clientSocket);
-		clientSocket.pipe(serverSocket);
+
+		const secureContext = tls.createSecureContext({ key, cert, ca: caCertPem });
+		const tlsSocket = new tls.TLSSocket(serverSocket, {
+			secureContext,
+			isServer: true,
+		});
+
+		tlsSocket.write(head);
+		tlsSocket.pipe(clientSocket);
+		clientSocket.pipe(tlsSocket);
 	});
 
 	serverSocket.on("error", (err) => {
